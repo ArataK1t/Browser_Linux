@@ -80,8 +80,8 @@ PROXY_FILE="$HOME/proxies.txt"
 
 # Проверка наличия файла с прокси
 if [ ! -f "$PROXY_FILE" ]; then
-  error "Файл с прокси не найден. Пожалуйста, создайте файл $PROXY_FILE и введите список прокси."
   touch "$PROXY_FILE"
+  error "Файл с прокси не найден. Пожалуйста, создайте файл $PROXY_FILE и введите список прокси."
   exit 1
 fi
 
