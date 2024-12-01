@@ -87,43 +87,20 @@ fi
 # Чтение прокси из файла
 mapfile -t PROXIES < "$PROXY_FILE"
 
-# Удаление файла после использования
+# Удаление файла после того, как прокси были считаны
 rm -f "$PROXY_FILE"
+
+# Проверка, что количество прокси не меньше количества контейнеров
+if [ ${#PROXIES[@]} -lt "$container_count" ]; then
+  error "Количество прокси меньше, чем количество контейнеров. Скрипт завершает работу."
+  exit 1
+fi
 
 # Проверка и настройка прокси
 proxy_http=""
 proxy_https=""
 proxy_socks5=""
 chromium_proxy_args=""
-
-# Используем прокси из файла
-for proxy in "${PROXIES[@]}"; do
-  # Разделяем строку на учетные данные (user:pass) и детали прокси (ip:port)
-  IFS='@' read -r credentials proxy_details <<< "$proxy"
-
-  # Разделяем учетные данные на user и pass
-  IFS=':' read -r user pass <<< "$credentials"
-
-  # Разделяем детали прокси на ip и port
-  IFS=':' read -r ip port <<< "$proxy_details"
-
-  # Выводим извлеченные данные для отладки (удалите после проверки)
-  echo "Прокси: $proxy"
-  echo "Пользователь: $user, Пароль: $pass, IP: $ip, Порт: $port"
-
-  # Прокси HTTP
-  if [[ "$proxy" =~ ":" ]]; then
-    proxy_http="-e HTTP_PROXY=http://$user:$pass@$ip:$port"
-    proxy_https="-e HTTPS_PROXY=http://$user:$pass@$ip:$port"
-    chromium_proxy_args="--proxy-server=http://$user:$pass@$ip:$port"
-  fi
-
-  # Прокси SOCKS5
-  if [[ "$proxy" =~ ":" ]]; then
-    proxy_socks5="-e ALL_PROXY=socks5://$user:$pass@$ip:$port"
-    chromium_proxy_args="--proxy-server=socks5://$user:$pass@$ip:$port"
-  fi
-done
 
 # Запрашиваем имя пользователя
 read -p "Введите имя пользователя: " USERNAME
@@ -161,6 +138,27 @@ fi
 
 # Создание контейнеров
 for ((i=0; i<container_count; i++)); do
+  # Используем прокси из файла для каждого контейнера
+  proxy="${PROXIES[$i]}"
+
+  # Разделяем строку на учетные данные (user:pass) и детали прокси (ip:port)
+  IFS='@' read -r credentials proxy_details <<< "$proxy"
+
+  # Разделяем учетные данные на user и pass
+  IFS=':' read -r user pass <<< "$credentials"
+
+  # Разделяем детали прокси на ip и port
+  IFS=':' read -r ip port <<< "$proxy_details"
+
+  # Прокси HTTP
+  proxy_http="-e HTTP_PROXY=http://$user:$pass@$ip:$port"
+  proxy_https="-e HTTPS_PROXY=http://$user:$pass@$ip:$port"
+  chromium_proxy_args="--proxy-server=http://$user:$pass@$ip:$port"
+
+  # Прокси SOCKS5
+  proxy_socks5="-e ALL_PROXY=socks5://$user:$pass@$ip:$port"
+  chromium_proxy_args="--proxy-server=socks5://$user:$pass@$ip:$port"
+
   current_port=$((start_port + i * 10))  # Каждый следующий контейнер на 10 портов дальше
 
   # Проверка, что порт свободен
