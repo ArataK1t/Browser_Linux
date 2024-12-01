@@ -75,36 +75,48 @@ function check_port() {
   fi
 }
 
+# Путь к файлу с прокси
+PROXY_FILE="$HOME/proxies.txt"
+
+# Создание файла с прокси, если его нет
+if [ ! -f "$PROXY_FILE" ]; then
+  show "Файл с прокси не найден. Создаю файл с прокси для редактирования."
+  touch "$PROXY_FILE"
+  nano "$PROXY_FILE"  # Открываем редактор для ввода прокси
+fi
+
+# Чтение прокси из файла
+mapfile -t PROXIES < "$PROXY_FILE"
+
+# Удаление файла после использования
+rm -f "$PROXY_FILE"
+
 # Проверка и настройка прокси
 proxy_http=""
 proxy_https=""
 proxy_socks5=""
 chromium_proxy_args=""
 
-read -p "Использовать прокси? [y/n]: " proxy_choice
-if [[ "$proxy_choice" =~ ^[yY]$ ]]; then
-  while true; do
-    read -p "Выберите тип прокси (http/socks5): " proxy_type
-    case "$proxy_type" in
-      http)
-        read -p "Введите HTTP-прокси (в формате USER:PASS@IP:PORT): " proxy
-        proxy_http="-e HTTP_PROXY=http://$proxy"
-        proxy_https="-e HTTPS_PROXY=http://$proxy"
-        chromium_proxy_args="--proxy-server=http://$proxy"
-        break
-        ;;
-      socks5)
-        read -p "Введите SOCKS5-прокси (в формате USER:PASS@IP:PORT): " proxy
-        proxy_socks5="-e ALL_PROXY=socks5://$proxy"
-        chromium_proxy_args="--proxy-server=socks5://$proxy"
-        break
-        ;;
-      *)
-        error "Неверный тип прокси. Выберите 'http' или 'socks5'."
-        ;;
-    esac
-  done
-fi
+# Используем прокси из файла
+for proxy in "${PROXIES[@]}"; do
+  # Пример деления на части (например, USER:PASS@IP:PORT)
+  IFS='@' read -r credentials proxy_details <<< "$proxy"
+  IFS=':' read -r user pass <<< "$credentials"
+  IFS=':' read -r ip port <<< "$proxy_details"
+
+  # Прокси HTTP
+  if [[ "$proxy" =~ .*":" ]]; then
+    proxy_http="-e HTTP_PROXY=http://$user:$pass@$ip:$port"
+    proxy_https="-e HTTPS_PROXY=http://$user:$pass@$ip:$port"
+    chromium_proxy_args="--proxy-server=http://$user:$pass@$ip:$port"
+  fi
+
+  # Прокси SOCKS5
+  if [[ "$proxy" =~ .*".*":" ]]; then
+    proxy_socks5="-e ALL_PROXY=socks5://$user:$pass@$ip:$port"
+    chromium_proxy_args="--proxy-server=socks5://$user:$pass@$ip:$port"
+  fi
+done
 
 # Запрашиваем имя пользователя
 read -p "Введите имя пользователя: " USERNAME
