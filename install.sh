@@ -75,25 +75,32 @@ function check_port() {
   fi
 }
 
-# Путь к файлу с прокси
-PROXY_FILE="$HOME/proxies.txt"
+# Запрашиваем, нужно ли использовать прокси
+read -p "Хотите использовать прокси для контейнеров? (y/n): " use_proxy
 
-# Проверка наличия файла с прокси
-if [ ! -f "$PROXY_FILE" ]; then
-  error "Файл с прокси не найден. Пожалуйста, создайте файл $PROXY_FILE и введите список прокси."
-  exit 1
-fi
+if [[ "$use_proxy" == "y" || "$use_proxy" == "Y" ]]; then
+  # Путь к файлу с прокси
+  PROXY_FILE="$HOME/proxies.txt"
 
-# Чтение прокси из файла
-mapfile -t PROXIES < "$PROXY_FILE"
+  # Проверка наличия файла с прокси
+  if [ ! -f "$PROXY_FILE" ]; then
+    error "Файл с прокси не найден. Пожалуйста, создайте файл $PROXY_FILE и введите список прокси."
+    exit 1
+  fi
 
-# Удаление файла после того, как прокси были считаны
-rm -f "$PROXY_FILE"
+  # Чтение прокси из файла
+  mapfile -t PROXIES < "$PROXY_FILE"
 
-# Проверка, что количество прокси не меньше количества контейнеров
-if [ ${#PROXIES[@]} -lt "$container_count" ]; then
-  error "Количество прокси меньше, чем количество контейнеров. Скрипт завершает работу."
-  exit 1
+  # Удаление файла после того, как прокси были считаны
+  rm -f "$PROXY_FILE"
+
+  # Проверка, что количество прокси не меньше количества контейнеров
+  if [ ${#PROXIES[@]} -lt "$container_count" ]; then
+    error "Количество прокси меньше, чем количество контейнеров. Скрипт завершает работу."
+    exit 1
+  fi
+else
+  PROXIES=()  # Если прокси не используются, массив остается пустым
 fi
 
 # Проверка и настройка прокси
@@ -136,28 +143,35 @@ else
   show "Образ Docker с Chromium успешно загружен."
 fi
 
-# Создание контейнеров
 for ((i=0; i<container_count; i++)); do
-  # Используем прокси из файла для каждого контейнера
-  proxy="${PROXIES[$i]}"
+  # Если прокси используются, берем их из массива
+  if [ "$use_proxy" == "y" || "$use_proxy" == "Y" ]; then
+    proxy="${PROXIES[$i]}"
 
-  # Разделяем строку на учетные данные (user:pass) и детали прокси (ip:port)
-  IFS='@' read -r credentials proxy_details <<< "$proxy"
+    # Разделяем строку на учетные данные (user:pass) и детали прокси (ip:port)
+    IFS='@' read -r credentials proxy_details <<< "$proxy"
 
-  # Разделяем учетные данные на user и pass
-  IFS=':' read -r user pass <<< "$credentials"
+    # Разделяем учетные данные на user и pass
+    IFS=':' read -r user pass <<< "$credentials"
 
-  # Разделяем детали прокси на ip и port
-  IFS=':' read -r ip port <<< "$proxy_details"
+    # Разделяем детали прокси на ip и port
+    IFS=':' read -r ip port <<< "$proxy_details"
 
-  # Прокси HTTP
-  proxy_http="-e HTTP_PROXY=http://$user:$pass@$ip:$port"
-  proxy_https="-e HTTPS_PROXY=http://$user:$pass@$ip:$port"
-  chromium_proxy_args="--proxy-server=http://$user:$pass@$ip:$port"
+    # Прокси HTTP
+    proxy_http="-e HTTP_PROXY=http://$user:$pass@$ip:$port"
+    proxy_https="-e HTTPS_PROXY=http://$user:$pass@$ip:$port"
+    chromium_proxy_args="--proxy-server=http://$user:$pass@$ip:$port"
 
-  # Прокси SOCKS5
-  proxy_socks5="-e ALL_PROXY=socks5://$user:$pass@$ip:$port"
-  chromium_proxy_args="--proxy-server=socks5://$user:$pass@$ip:$port"
+    # Прокси SOCKS5
+    proxy_socks5="-e ALL_PROXY=socks5://$user:$pass@$ip:$port"
+    chromium_proxy_args="--proxy-server=socks5://$user:$pass@$ip:$port"
+  else
+    # Если прокси не используются, оставляем переменные пустыми
+    proxy_http=""
+    proxy_https=""
+    proxy_socks5=""
+    chromium_proxy_args=""
+  fi
 
   current_port=$((start_port + i * 10))  # Каждый следующий контейнер на 10 портов дальше
 
