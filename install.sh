@@ -24,9 +24,9 @@ show "Обновление системы и установка зависимо
 sudo apt update && sudo apt upgrade -y
 
 for package in git curl; do
-  if ! [ -x "$(command -v "$package")" ]; then
+  if ! [ -x "$(command -v $package)" ]; then
     show "Устанавливаю $package..."
-    sudo apt install -y "$package"
+    sudo apt install -y $package
   else
     show "$package уже установлен."
   fi
@@ -65,7 +65,7 @@ read -p "С какого порта начать? (По умолчанию $defa
 start_port=${start_port:-$default_port}
 
 # Проверка уникальности порта
-check_port() {
+function check_port() {
   port_in_use=$(lsof -i -P -n | grep -w "$1")
   if [ -n "$port_in_use" ]; then
     echo "Порт $1 уже занят. Выберите другой порт."
@@ -75,37 +75,32 @@ check_port() {
   fi
 }
 
-# Запрашиваем, нужно ли использовать прокси
-read -p "Хотите использовать прокси для контейнеров? (y/n): " use_proxy
+# Путь к файлу с прокси
+PROXY_FILE="$HOME/proxies.txt"
 
-if [[ "$use_proxy" == "y" || "$use_proxy" == "Y" ]]; then
-  # Путь к файлу с прокси
-  PROXY_FILE="$HOME/proxies.txt"
+# Проверка наличия файла с прокси
+if [ ! -f "$PROXY_FILE" ]; then
+  error "Файл с прокси не найден. Пожалуйста, создайте файл $PROXY_FILE и введите список прокси."
+  exit 1
+fi
 
-  # Проверка наличия файла с прокси
-  if [ ! -f "$PROXY_FILE" ]; then
-    error "Файл с прокси не найден. Пожалуйста, создайте файл $PROXY_FILE и введите список прокси."
-    exit 1
-  fi
+# Чтение прокси из файла
+mapfile -t PROXIES < "$PROXY_FILE"
 
-  # Чтение прокси из файла
-  mapfile -t PROXIES < "$PROXY_FILE"
+# Удаление файла после того, как прокси были считаны
+rm -f "$PROXY_FILE"
 
-  # Удаление файла после того, как прокси были считаны
-  rm -f "$PROXY_FILE"
-
-  # Проверка, что количество прокси не меньше количества контейнеров
-  if [ "${#PROXIES[@]}" -lt "$container_count" ]; then
-    error "Количество прокси меньше, чем количество контейнеров. Скрипт завершает работу."
-    exit 1
-  fi
-else
-  PROXIES=()  # Если прокси не используются, массив остается пустым
+# Проверка, что количество прокси не меньше количества контейнеров
+if [ ${#PROXIES[@]} -lt "$container_count" ]; then
+  error "Количество прокси меньше, чем количество контейнеров. Скрипт завершает работу."
+  exit 1
 fi
 
 # Проверка и настройка прокси
 proxy_http=""
 proxy_https=""
+proxy_socks5=""
+chromium_proxy_args=""
 
 # Запрашиваем имя пользователя
 read -p "Введите имя пользователя: " USERNAME
@@ -141,29 +136,28 @@ else
   show "Образ Docker с Chromium успешно загружен."
 fi
 
+# Создание контейнеров
 for ((i=0; i<container_count; i++)); do
-  # Если прокси используются, берем их из массива
-  if [[ "$use_proxy" == "y" || "$use_proxy" == "Y" ]]; then
-    proxy="${PROXIES[$i]}"
+  # Используем прокси из файла для каждого контейнера
+  proxy="${PROXIES[$i]}"
 
-    # Разделяем строку на учетные данные (user:pass) и детали прокси (ip:port)
-    IFS='@' read -r credentials proxy_details <<< "$proxy"
+  # Разделяем строку на учетные данные (user:pass) и детали прокси (ip:port)
+  IFS='@' read -r credentials proxy_details <<< "$proxy"
 
-    # Разделяем учетные данные на user и pass
-    IFS=':' read -r user pass <<< "$credentials"
+  # Разделяем учетные данные на user и pass
+  IFS=':' read -r user pass <<< "$credentials"
 
-    # Разделяем детали прокси на ip и port
-    IFS=':' read -r ip port <<< "$proxy_details"
+  # Разделяем детали прокси на ip и port
+  IFS=':' read -r ip port <<< "$proxy_details"
 
-    # Прокси HTTP
-    proxy_http="-e HTTP_PROXY=http://$user:$pass@$ip:$port"
-    proxy_https="-e HTTPS_PROXY=http://$user:$pass@$ip:$port"
+  # Прокси HTTP
+  proxy_http="-e HTTP_PROXY=http://$user:$pass@$ip:$port"
+  proxy_https="-e HTTPS_PROXY=http://$user:$pass@$ip:$port"
+  chromium_proxy_args="--proxy-server=http://$user:$pass@$ip:$port"
 
-  else
-    # Если прокси не используются, оставляем переменные пустыми
-    proxy_http=""
-    proxy_https=""
-  fi
+  # Прокси SOCKS5
+  proxy_socks5="-e ALL_PROXY=socks5://$user:$pass@$ip:$port"
+  chromium_proxy_args="--proxy-server=socks5://$user:$pass@$ip:$port"
 
   current_port=$((start_port + i * 10))  # Каждый следующий контейнер на 10 портов дальше
 
@@ -191,8 +185,9 @@ for ((i=0; i<container_count; i++)); do
     -e CUSTOM_USER="$USERNAME" \
     -e PASSWORD="$PASSWORD" \
     -e LANGUAGE=en_US.UTF-8 \
-    "$proxy_http" \
-    "$proxy_https" \
+    $proxy_http \
+    $proxy_https \
+    $proxy_socks5 \
     -v "$config_dir:/config" \
     -p "$current_port:3000" \
     --shm-size="2gb" \
