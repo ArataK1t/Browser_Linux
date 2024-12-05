@@ -106,7 +106,6 @@ fi
 # Проверка и настройка прокси
 proxy_http=""
 proxy_https=""
-proxy_socks5=""
 chromium_proxy_args=""
 
 # Запрашиваем имя пользователя
@@ -162,14 +161,10 @@ for ((i=0; i<container_count; i++)); do
     proxy_https="-e HTTPS_PROXY=http://$user:$pass@$ip:$port"
     chromium_proxy_args="--proxy-server=http://$user:$pass@$ip:$port"
 
-    # Прокси SOCKS5
-    proxy_socks5="-e ALL_PROXY=socks5://$user:$pass@$ip:$port"
-    chromium_proxy_args="--proxy-server=socks5://$user:$pass@$ip:$port"
   else
     # Если прокси не используются, оставляем переменные пустыми
     proxy_http=""
     proxy_https=""
-    proxy_socks5=""
     chromium_proxy_args=""
   fi
 
@@ -201,7 +196,6 @@ for ((i=0; i<container_count; i++)); do
     -e LANGUAGE=en_US.UTF-8 \
     "$proxy_http" \
     "$proxy_https" \
-    "$proxy_socks5" \
     -v "$config_dir:/config" \
     -p "$current_port:3000" \
     --shm-size="2gb" \
