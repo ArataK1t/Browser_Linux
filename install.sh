@@ -106,7 +106,6 @@ fi
 # Проверка и настройка прокси
 proxy_http=""
 proxy_https=""
-chromium_proxy_args=""
 
 # Запрашиваем имя пользователя
 read -p "Введите имя пользователя: " USERNAME
@@ -159,13 +158,11 @@ for ((i=0; i<container_count; i++)); do
     # Прокси HTTP
     proxy_http="-e HTTP_PROXY=http://$user:$pass@$ip:$port"
     proxy_https="-e HTTPS_PROXY=http://$user:$pass@$ip:$port"
-    chromium_proxy_args="--proxy-server=http://$user:$pass@$ip:$port"
 
   else
     # Если прокси не используются, оставляем переменные пустыми
     proxy_http=""
     proxy_https=""
-    chromium_proxy_args=""
   fi
 
   current_port=$((start_port + i * 10))  # Каждый следующий контейнер на 10 портов дальше
