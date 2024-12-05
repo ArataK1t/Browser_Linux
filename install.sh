@@ -24,9 +24,9 @@ show "Обновление системы и установка зависимо
 sudo apt update && sudo apt upgrade -y
 
 for package in git curl; do
-  if ! [ -x "$(command -v $package)" ]; then
+  if ! [ -x "$(command -v "$package")" ]; then
     show "Устанавливаю $package..."
-    sudo apt install -y $package
+    sudo apt install -y "$package"
   else
     show "$package уже установлен."
   fi
@@ -65,7 +65,7 @@ read -p "С какого порта начать? (По умолчанию $defa
 start_port=${start_port:-$default_port}
 
 # Проверка уникальности порта
-function check_port() {
+check_port() {
   port_in_use=$(lsof -i -P -n | grep -w "$1")
   if [ -n "$port_in_use" ]; then
     echo "Порт $1 уже занят. Выберите другой порт."
@@ -95,7 +95,7 @@ if [[ "$use_proxy" == "y" || "$use_proxy" == "Y" ]]; then
   rm -f "$PROXY_FILE"
 
   # Проверка, что количество прокси не меньше количества контейнеров
-  if [ ${#PROXIES[@]} -lt "$container_count" ]; then
+  if [ "${#PROXIES[@]}" -lt "$container_count" ]; then
     error "Количество прокси меньше, чем количество контейнеров. Скрипт завершает работу."
     exit 1
   fi
@@ -145,7 +145,7 @@ fi
 
 for ((i=0; i<container_count; i++)); do
   # Если прокси используются, берем их из массива
-  if [ "$use_proxy" == "y" || "$use_proxy" == "Y" ]; then
+  if [[ "$use_proxy" == "y" || "$use_proxy" == "Y" ]]; then
     proxy="${PROXIES[$i]}"
 
     # Разделяем строку на учетные данные (user:pass) и детали прокси (ip:port)
@@ -199,9 +199,9 @@ for ((i=0; i<container_count; i++)); do
     -e CUSTOM_USER="$USERNAME" \
     -e PASSWORD="$PASSWORD" \
     -e LANGUAGE=en_US.UTF-8 \
-    $proxy_http \
-    $proxy_https \
-    $proxy_socks5 \
+    "$proxy_http" \
+    "$proxy_https" \
+    "$proxy_socks5" \
     -v "$config_dir:/config" \
     -p "$current_port:3000" \
     --shm-size="2gb" \
@@ -215,3 +215,4 @@ for ((i=0; i<container_count; i++)); do
     error "Не удалось запустить контейнер $container_name_unique."
   fi
 done
+
